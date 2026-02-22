@@ -1,0 +1,64 @@
+# =========================
+# Python / FastAPI
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+.env/
+.env.*
+.venv/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs
+*.log
+
+# =========================
+# Frontend / React
+# =========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
+frontend/.cache/
+
+# Package managers
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# =========================
+# Docker
+# =========================
+*.env
+docker-compose.override.yml
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# =========================
+# Project-specific
+# =========================
+# keep README-1.md tracked
+!README-1.md

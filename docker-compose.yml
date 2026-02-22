@@ -1,0 +1,60 @@
+version: "3.9"
+
+# SwiftTrack – Full-stack Docker Compose
+# Starts: RabbitMQ, FastAPI backend, React frontend
+#
+# Usage:
+#   docker compose up --build
+#   Backend:   http://localhost:8000   (API docs: /docs)
+#   Frontend:  http://localhost:3000
+#   RabbitMQ:  http://localhost:15672  (guest / guest)
+
+services:
+
+  # ── Message Broker ──────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: swifttrack-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swifttrack-backend
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+      DATABASE_URL: "sqlite+aiosqlite:///./swifttrack.db"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── React Frontend ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: swifttrack-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: "http://localhost:8000/api/v1"
+      REACT_APP_WS_URL:  "ws://localhost:8000/ws"
+    depends_on:
+      - backend

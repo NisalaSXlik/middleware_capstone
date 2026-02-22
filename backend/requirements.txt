@@ -1,0 +1,31 @@
+# SwiftTrack - SwiftLogistics Middleware Platform
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Data Validation & Serialisation
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database ORM (SQLite for prototype, swap connection string for PostgreSQL/MongoDB)
+sqlalchemy==2.0.23
+aiosqlite==0.19.0
+
+# HTTP Client (calling external ROS REST API mock)
+httpx==0.25.2
+
+# File upload support (proof-of-delivery photos)
+python-multipart==0.0.6
+
+# JWT Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Async message broker (RabbitMQ – start broker via docker-compose)
+aio-pika==9.3.1
+
+# XML processing (SOAP/XML protocol adapter for CMS integration)
+lxml==4.9.3
+
+# WebSocket support (bundled in uvicorn[standard] via websockets)
+websockets==12.0
