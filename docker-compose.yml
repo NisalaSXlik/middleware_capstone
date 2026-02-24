@@ -1,60 +1,156 @@
 version: "3.9"
 
-# SwiftTrack – Full-stack Docker Compose
-# Starts: RabbitMQ, FastAPI backend, React frontend
-#
-# Usage:
-#   docker compose up --build
-#   Backend:   http://localhost:8000   (API docs: /docs)
-#   Frontend:  http://localhost:3000
-#   RabbitMQ:  http://localhost:15672  (guest / guest)
-
 services:
-
-  # ── Message Broker ──────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────
+  # INFRASTRUCTURE
+  # ─────────────────────────────────────────────
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: swifttrack-rabbitmq
     ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      - "5672:5672"       # AMQP
+      - "15672:15672"     # Management UI  →  http://localhost:15672  (guest/guest)
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # ── FastAPI Backend ──────────────────────────────────────────────────────
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: swifttrack-backend
+  mongodb:
+    image: mongo:7
+    container_name: swifttrack-mongodb
     ports:
-      - "8000:8000"
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ─────────────────────────────────────────────
+  # MOCK BACK-END SYSTEMS
+  # ─────────────────────────────────────────────
+  cms-mock:
+    build: ./services/cms-mock
+    container_name: swifttrack-cms
+    expose:
+      - "8001"
     environment:
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
-      DATABASE_URL: "sqlite+aiosqlite:///./swifttrack.db"
+      - PORT=8001
+      - MONGO_URL=mongodb://mongodb:27017/swifttrack
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  wms-mock:
+    build: ./services/wms-mock
+    container_name: swifttrack-wms
+    expose:
+      - "9000"
+      - "9001"
+    ports:
+      - "9001:9001"       # WMS management API  →  http://localhost:9001
+    environment:
+      - TCP_PORT=9000
+      - MANAGEMENT_PORT=9001
+      - MONGO_URL=mongodb://mongodb:27017/swifttrack
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  ros-mock:
+    build: ./services/ros-mock
+    container_name: swifttrack-ros
+    expose:
+      - "8002"
+    environment:
+      - PORT=8002
+
+  # ─────────────────────────────────────────────
+  # WORKER (SAGA ORCHESTRATOR)
+  # ─────────────────────────────────────────────
+  worker:
+    build: ./services/worker
+    container_name: swifttrack-worker
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - MONGO_URL=mongodb://mongodb:27017/swifttrack
+      - CMS_URL=http://cms-mock:8001
+      - WMS_HOST=wms-mock
+      - WMS_PORT=9000
+      - ROS_URL=http://ros-mock:8002
     depends_on:
       rabbitmq:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      mongodb:
+        condition: service_healthy
+      cms-mock:
+        condition: service_started
+      wms-mock:
+        condition: service_started
+      ros-mock:
+        condition: service_started
 
-  # ── React Frontend ───────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────
+  # NOTIFICATION SERVICE
+  # ─────────────────────────────────────────────
+  notification:
+    build: ./services/notification
+    container_name: swifttrack-notification
+    ports:
+      - "8003:8003"       # Socket.io  →  http://localhost:8003
+    environment:
+      - PORT=8003
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────
+  # API GATEWAY
+  # ─────────────────────────────────────────────
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: swifttrack-gateway
+    ports:
+      - "8000:8000"       # REST API  →  http://localhost:8000
+    environment:
+      - PORT=8000
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - MONGO_URL=mongodb://mongodb:27017/swifttrack
+      - JWT_SECRET=swifttrack-dev-secret-change-in-production
+      - NOTIFICATION_URL=http://notification:8003
+      - CMS_URL=http://cms-mock:8001
+      - WMS_ADMIN_URL=http://wms-mock:9001
+      - ROS_URL=http://ros-mock:8002
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      worker:
+        condition: service_started
+      notification:
+        condition: service_started
+
+  # ─────────────────────────────────────────────
+  # FRONTEND
+  # ─────────────────────────────────────────────
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
     container_name: swifttrack-frontend
     ports:
-      - "3000:3000"
+      - "3000:3000"       # React app  →  http://localhost:3000
+    volumes:
+      - ./frontend:/app          # mount source so Vite HMR reloads on save
+      - /app/node_modules        # keep container's node_modules, don't overwrite with host
     environment:
-      REACT_APP_API_URL: "http://localhost:8000/api/v1"
-      REACT_APP_WS_URL:  "ws://localhost:8000/ws"
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=http://localhost:8003
     depends_on:
-      - backend
+      - api-gateway
+
+volumes:
+  mongo_data:

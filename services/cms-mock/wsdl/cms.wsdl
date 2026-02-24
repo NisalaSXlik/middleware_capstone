@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="CMS"
+  targetNamespace="http://swifttrack.cms/wsdl"
+  xmlns="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+  xmlns:tns="http://swifttrack.cms/wsdl"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <types>
+    <xsd:schema targetNamespace="http://swifttrack.cms/wsdl">
+      <xsd:element name="CreateOrderRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="clientId"   type="xsd:string"/>
+            <xsd:element name="pickupAddr" type="xsd:string"/>
+            <xsd:element name="deliverAddr" type="xsd:string"/>
+            <xsd:element name="packageDesc" type="xsd:string"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="CreateOrderResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="cmsOrderRef" type="xsd:string"/>
+            <xsd:element name="status"      type="xsd:string"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="CancelOrderRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="cmsOrderRef" type="xsd:string"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="CancelOrderResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="status" type="xsd:string"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:schema>
+  </types>
+
+  <message name="CreateOrderInput">
+    <part name="parameters" element="tns:CreateOrderRequest"/>
+  </message>
+  <message name="CreateOrderOutput">
+    <part name="parameters" element="tns:CreateOrderResponse"/>
+  </message>
+  <message name="CancelOrderInput">
+    <part name="parameters" element="tns:CancelOrderRequest"/>
+  </message>
+  <message name="CancelOrderOutput">
+    <part name="parameters" element="tns:CancelOrderResponse"/>
+  </message>
+
+  <portType name="CMSPortType">
+    <operation name="CreateOrder">
+      <input  message="tns:CreateOrderInput"/>
+      <output message="tns:CreateOrderOutput"/>
+    </operation>
+    <operation name="CancelOrder">
+      <input  message="tns:CancelOrderInput"/>
+      <output message="tns:CancelOrderOutput"/>
+    </operation>
+  </portType>
+
+  <binding name="CMSBinding" type="tns:CMSPortType">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <operation name="CreateOrder">
+      <soap:operation soapAction="CreateOrder"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+    <operation name="CancelOrder">
+      <soap:operation soapAction="CancelOrder"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+  </binding>
+
+  <service name="CMSService">
+    <port name="CMSPort" binding="tns:CMSBinding">
+      <soap:address location="http://cms-mock:8001/cms"/>
+    </port>
+  </service>
+</definitions>
