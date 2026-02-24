@@ -18,11 +18,14 @@ Subsequent runs are fast due to Docker layer caching.
 
 | Interface            | URL                              | Login role |
 |----------------------|----------------------------------|------------|
-| Client Portal        | http://localhost:3000/client/login | client     |
-| Driver App           | http://localhost:3000/driver/login | driver     |
-| Admin Dashboard      | http://localhost:3000/admin/dashboard | admin    |
+| Client Portal        | http://localhost:3000/login      | client     |
+| Driver App           | http://localhost:3000/login      | driver     |
+| Admin Dashboard      | http://localhost:3000/login      | admin      |
 | API Gateway          | http://localhost:8000            | —          |
 | RabbitMQ Management  | http://localhost:15672           | guest/guest |
+| WMS Management API   | http://localhost:9001            | —          |
+
+> All three roles share a single login page at `/login`. Select the **Client**, **Driver**, or **Admin** tab before signing in — you will be redirected to the correct dashboard automatically.
 
 ## Create test users (first time only)
 
@@ -45,11 +48,12 @@ curl -X POST http://localhost:8000/api/auth/register \
 
 ## Demo flow
 
-1. Log in as **client** → submit a new order
-2. Watch the order status update live (PENDING → CONFIRMED) via WebSocket
-3. Log in as **admin** in another tab → see the order appear, trigger a route change
-4. Log in as **driver** → see the route change notification arrive in real time
+1. Go to http://localhost:3000/login, select **Client** tab → log in → submit a new order
+2. Watch the order status update live (PENDING → CONFIRMED) via WebSocket — no refresh needed
+3. Open a new tab → http://localhost:3000/login, select **Admin** tab → log in → see the order appear, trigger a route change
+4. Open another tab → http://localhost:3000/login, select **Driver** tab → log in → see the route change notification arrive in real time
 5. Check **RabbitMQ Management** (http://localhost:15672) to see queue activity
+6. Use the **Service Health** tab in the Admin dashboard to toggle CMS/WMS/ROS offline and observe retry/compensation behaviour
 
 ## Architecture overview
 
