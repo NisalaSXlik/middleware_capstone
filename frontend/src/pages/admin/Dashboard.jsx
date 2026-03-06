@@ -369,13 +369,23 @@ export default function AdminDashboard() {
                       <div className="px-5 pb-5 border-t border-slate-100 pt-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Raw SOAP / Request</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">
+                              {log.adapter === "cms" ? "Raw SOAP/XML Request"
+                                : log.adapter === "wms" ? "Raw TCP Message (sent)"
+                                : log.adapter === "ros" ? "Raw REST/JSON Request"
+                                : "Raw Request"}
+                            </p>
                             <pre className="bg-slate-900 text-green-300 text-xs p-3 rounded-lg overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
                               {log.rawRequest || log.input || "—"}
                             </pre>
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Raw Response / Output</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">
+                              {log.adapter === "cms" ? "Raw SOAP/XML Response"
+                                : log.adapter === "wms" ? "Raw TCP Message (received)"
+                                : log.adapter === "ros" ? "Raw REST/JSON Response"
+                                : "Raw Response"}
+                            </p>
                             <pre className="bg-slate-900 text-blue-300 text-xs p-3 rounded-lg overflow-x-auto max-h-64 whitespace-pre-wrap break-all">
                               {log.rawResponse || log.output || "—"}
                             </pre>

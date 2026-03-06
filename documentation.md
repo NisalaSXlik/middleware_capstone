@@ -26,8 +26,9 @@ SCS2314 — Middleware Architecture | Assignment 4
 3. [Architectural and Integration Patterns](#3-architectural-and-integration-patterns)
 4. [Prototype Implementation](#4-prototype-implementation)
 5. [Information Security Considerations](#5-information-security-considerations)
-6. [Conclusion](#6-conclusion)
-7. [References](#references)
+6. [Addressing the Architectural Challenges](#6-addressing-the-architectural-challenges)
+7. [Conclusion](#7-conclusion)
+8. [References](#references)
 
 ---
 
@@ -198,7 +199,7 @@ The solution decomposes the platform into independently deployable services: the
 
 This pattern was chosen because the three back-end systems have fundamentally different communication requirements. A monolithic integration layer would tightly couple these concerns, making the system fragile and difficult to extend as Swift Logistics onboards new clients or integrates additional services.
 
-Service discovery and a service registry were considered but deliberately excluded from the prototype. Because the service topology is fixed and all services run within a controlled Docker network with known hostnames, a dynamic discovery mechanism would add operational complexity without benefit at this scale. In a production deployment with dynamically scaled Worker Service instances, a lightweight registry such as Consul would be appropriate.
+Service discovery is handled by Docker's built-in networking, which provides DNS resolution for service hostnames within the container network. This approach simplifies the prototype by leveraging Docker's service registry capabilities without requiring additional tooling. For production environments with dynamic scaling, a dedicated service registry could be integrated if needed.
 
 ### 3.2 API Gateway Pattern
 
@@ -394,8 +395,8 @@ Three mobile-responsive React interfaces are implemented, sharing a single respo
 | View | Description |
 |---|---|
 | Driver Login | Issues a driver-scoped JWT restricting access to the assigned route only. |
-| Daily Manifest | Shows the ordered list of deliveries for the day as returned by the ROS. Items reorder automatically on receiving a route update via Socket.io. |
-| Delivery Confirmation | Allows the driver to mark a package as DELIVERED or FAILED. For DELIVERED: captures recipient digital signature (canvas touch input) and/or photo (browser MediaDevices camera API). For FAILED: requires a reason code (`RECIPIENT_ABSENT`, `ADDRESS_INCORRECT`, `REFUSED`, `OTHER`) and optional notes. |
+| Daily Manifest | Shows the ordered list of deliveries for the day as returned by the ROS. Items reorder automatically on receiving a route update via Socket.io. Displays an online/offline network status indicator. Any deliveries confirmed while offline are queued in `localStorage` and automatically synced (flushed) to the API when connectivity is restored. |
+| Delivery Confirmation | Allows the driver to mark a package as DELIVERED or FAILED. For DELIVERED: captures recipient digital signature (canvas touch input) and/or photo (browser MediaDevices camera API). For FAILED: requires a reason code (`RECIPIENT_ABSENT`, `ADDRESS_INCORRECT`, `REFUSED`, `OTHER`) and optional notes. If the device is offline, the confirmation payload is queued in `localStorage` and submitted automatically when the driver regains connectivity. |
 
 #### Admin Interface
 
@@ -472,18 +473,39 @@ All authentication events and order state transitions are recorded as immutable 
 
 ---
 
-## 6. Conclusion
+## 6. Addressing the Architectural Challenges
 
-The proposed Decentralised Microservices Architecture provides a robust foundation for the SwiftTrack platform. The combination of the API Gateway, RabbitMQ message broker with Dead Letter Queues, Saga Orchestrator with retry and crash recovery, and Socket.io Notification Service directly addresses each of the architectural challenges identified in the brief:
+The brief outlines six specific architectural challenges that the middleware solution must address. This section discusses how each challenge is tackled by the proposed architecture and implementation.
 
-- **Heterogeneous protocol integration** through dedicated SOAP/XML, TCP/IP, and REST/JSON adapters, each isolated within the Worker Service.
-- **High-volume asynchronous processing** through RabbitMQ durable queues and the Competing Consumers pattern, ensuring no order is lost or blocked during peak events such as Black Friday and Avurudu sales.
-- **Distributed transaction consistency** through Saga Orchestration with exponential-backoff retry, compensating transactions, Dead Letter Queues, and crash recovery from the saga log.
-- **Real-time updates** through Socket.io WebSocket push from the Notification Service to both the client portal and driver app, propagating delivery events in sub-second time.
-- **Security** through JWT authentication, RBAC, bcrypt password hashing, input validation, Docker network isolation, and TLS transport in production.
-- **Scalability and resilience** through horizontal scaling of stateless Worker Service instances consuming from the same RabbitMQ queue, with service failure isolation via Docker containerisation.
+### 6.1 Heterogeneous Systems Integration
 
-The prototype demonstrates the complete order submission flow across all three mock back-end systems, retry and compensation logic, real-time status updates (`ORDER_CONFIRMED`, `ORDER_FAILED`, `DELIVERY_UPDATE`, `ROUTE_CHANGED`) propagated to the client portal, driver app, and admin dashboard, and the protocol transformation logging visible in the admin Protocol Logs tab. The entire platform starts with a single `docker compose up --build` command. All technologies are open-source, satisfying the core constraint of the brief.
+The three back-end systems (CMS, ROS, WMS) use incompatible protocols: SOAP/XML, REST/JSON, and proprietary TCP/IP messaging. The Adapter Pattern isolates protocol-specific logic within dedicated adapters in the Worker Service, each using appropriate libraries (`soap` for SOAP, `axios` for REST, Node.js `net` for TCP). This ensures clean separation of concerns and easy maintenance if protocols change. The Saga Orchestrator coordinates these adapters sequentially, transforming internal JSON data structures to the required protocol formats and parsing responses back to JSON for logging and persistence.
+
+### 6.2 Real-Time Tracking and Notifications
+
+Real-time updates are critical for clients tracking deliveries and drivers receiving route changes. The solution uses Socket.io for WebSocket push notifications, with events published to RabbitMQ's `event.updates` queue by the Saga Orchestrator and API Gateway. The Notification Service consumes this queue and routes events to Socket.io rooms (`user:{id}` for targeted updates, `role:admin` for visibility). This provides sub-second propagation of status changes (e.g., order confirmed, delivered, failed) without client polling, supporting the brief's requirement for immediate reflection in the client portal when a driver marks a package as delivered.
+
+### 6.3 High-Volume, Asynchronous Processing
+
+Order processing must not block the client portal during peak events like Black Friday. The Publish-Subscribe Pattern with RabbitMQ decouples order submission from processing: the API Gateway publishes to `order.intake` and returns `202 Accepted` immediately. The Saga Orchestrator consumes asynchronously, allowing the queue to buffer bursts. Durable queues survive restarts, and the Competing Consumers pattern enables horizontal scaling of Worker instances. Dead Letter Queues ensure no order is lost if processing fails repeatedly.
+
+### 6.4 Transaction Management
+
+A single order spans three systems, requiring distributed transaction consistency. The Saga Orchestration Pattern manages this with sequential steps, retry (up to 3 times with exponential backoff), and compensating transactions (e.g., cancel CMS order if WMS fails). Saga logs in MongoDB record each step's outcome, enabling crash recovery and audit trails. This ensures orders are never partially processed without rollback, addressing the brief's requirement that an order is never lost even if a back-end is unavailable.
+
+### 6.5 Scalability and Resilience
+
+The microservices architecture allows independent scaling: multiple Worker instances can consume from the same queue, API Gateway can be load-balanced, and Notification Service can scale with WebSocket connections. Docker containerisation isolates failures (e.g., one service crash doesn't affect others), and RabbitMQ's message broker absorbs load spikes. Resilience is enhanced by retry logic, DLQs, and saga recovery from logs, ensuring the system handles increasing clients, drivers, and deliveries without single points of failure.
+
+### 6.6 Security
+
+All communication is secured via JWT authentication with RBAC, input validation at the API Gateway, and bcrypt-hashed passwords in MongoDB. Transport security uses TLS in production (HTTPS/WSS), with Docker network isolation internally. RabbitMQ requires authentication with limited permissions, and audit logs track all events. This protects against unauthorized access, data breaches, and injection attacks, as required by the brief.
+
+---
+
+## 7. Conclusion
+
+The proposed Decentralised Microservices Architecture provides a robust foundation for the SwiftTrack platform. By leveraging open-source technologies such as Node.js, RabbitMQ, MongoDB, and Socket.io, the solution meets all functional and non-functional requirements outlined in the brief. The prototype demonstrates end-to-end integration, real-time notifications, and fault tolerance, serving as a solid proof-of-concept for production deployment. Future enhancements could include production hardening (e.g., TLS everywhere, monitoring with Prometheus/Grafana) and additional features like advanced analytics or multi-tenant support.
 
 ---
 
