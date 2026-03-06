@@ -1,23 +1,25 @@
+---
+css: styles.css
+---
 # SwiftLogistics – SwiftTrack Platform
 ## Middleware Architecture Solution
 
-**University of Colombo School of Computing**  
-Department of Computer Science  
-SCS2314 — Middleware Architecture | Assignment 4
+SCS2314 — Middleware Architecture - Assignment 4 - Capstone Project
 
 ---
 
 | Index Number | Name |
 |---|---|
-| [Index Number] | [Name] |
-| [Index Number] | [Name] |
-| [Index Number] | [Name] |
-| [Index Number] | [Name] |
-| [Index Number] | [Name] |
+| 23001402 | L.L.W.Perera |
+| 23001552 | R.A.N.R.Ranasinghe |
+| 23001003 | H.A.R. Lakshan |
+| 23000473 |  K.L.S.Fonseka |
+| 23000546 | D.A.P.S.S.Gunarathna|
+| 23000872 | K.P.A.H.Karunanayake |
 
 **Submission Date:** 28 February 2026
 
----
+<div style="page-break-after: always;"></div>
 
 ## Table of Contents
 
@@ -28,11 +30,10 @@ SCS2314 — Middleware Architecture | Assignment 4
 5. [Information Security Considerations](#5-information-security-considerations)
 6. [Addressing the Architectural Challenges](#6-addressing-the-architectural-challenges)
 7. [Conclusion](#7-conclusion)
-8. [References](#references)
 
----
+<div style="page-break-after: always;"></div>
 
-## 1. Introduction
+## <a id="1-introduction"></a>1. Introduction
 
 Swift Logistics (Pvt) Ltd. is a rapidly growing logistics company in Sri Lanka specialising in last-mile delivery for e-commerce businesses. The company serves a diverse client base ranging from large online retailers to independent sellers. To scale operations and remain competitive, Swift Logistics is replacing its existing siloed systems with a modern, integrated platform called SwiftTrack.
 
@@ -40,9 +41,9 @@ SwiftTrack is a web-based portal for e-commerce clients and a mobile-responsive 
 
 This document describes the middleware architecture designed and implemented to address the integration requirements of SwiftTrack. It covers the proposed architecture, the architectural and integration patterns selected, the technology stack, the prototype implementation, and the information security considerations. The entire solution is built on open-source technologies, satisfying the core constraint of the assignment brief.
 
----
+<div style="page-break-after: always;"></div>
 
-## 2. Solution Architecture
+## <a id="2-solution-architecture"></a>2. Solution Architecture
 
 ### 2.1 Conceptual Architecture
 
@@ -55,53 +56,7 @@ The solution adopts a Decentralised Microservices Architecture organised into fo
 
 #### Conceptual Architecture Diagram
 
-```mermaid
-graph TD
-    subgraph CLIENT["CLIENT LAYER"]
-        CP["React Web Portal"]
-        DA["Driver App (Mobile-responsive)"]
-        AU["Admin UI"]
-    end
-
-    subgraph GATEWAY["API GATEWAY LAYER"]
-        GW["Node.js / Express\nAuth (JWT) · Routing · Rate Limiting"]
-    end
-
-    subgraph ORCHESTRATION["INTEGRATION & ORCHESTRATION LAYER"]
-        WK["Saga Orchestrator (Worker Service)"]
-        NS["Notification Service (Socket.io)"]
-        CA["CMS Adapter\nSOAP/XML"]
-        WA["WMS Adapter\nTCP/IP"]
-        RA["ROS Adapter\nREST/JSON"]
-    end
-
-    subgraph INFRA["DATA & MESSAGING LAYER"]
-        RMQ["RabbitMQ\norder.intake · event.updates · DLQ"]
-        MDB["MongoDB\nOrders · Saga Logs · Route Manifests"]
-    end
-
-    subgraph BACKENDS["BACK-END SYSTEMS (MOCKED)"]
-        CMS["CMS\nSOAP/XML :8001"]
-        WMS["WMS\nTCP/IP :9000"]
-        ROS["ROS\nREST/JSON :8002"]
-    end
-
-    CP -- REST / WebSocket --> GW
-    DA -- REST / WebSocket --> GW
-    AU -- REST / WebSocket --> GW
-
-    GW -- AMQP --> RMQ
-    RMQ -- Consumes --> WK
-    WK -- Reads/Writes --> MDB
-    WK --> CA & WA & RA
-    WK -- Publishes events --> RMQ
-    RMQ -- Consumes events --> NS
-    NS -- WebSocket push --> CP & DA & AU
-
-    CA --> CMS
-    WA --> WMS
-    RA --> ROS
-```
+![Conceptual Architecture Diagram](images/conceptual-architecture-diagram.png)
 
 ---
 
@@ -111,63 +66,7 @@ The implementation architecture refines the conceptual view into concrete servic
 
 #### Implementation Architecture Diagram
 
-```mermaid
-flowchart TD
-    subgraph CLIENTS["Clients (Browser / Mobile)"]
-        CP["React Client Portal"]
-        DA["React Driver App"]
-        AU["React Admin Interface"]
-    end
-
-    subgraph GW["API Gateway · :8000"]
-        JWT["JWT Middleware"]
-        ROUTES["/api/auth  /api/orders\n/api/drivers  /api/routes\n/api/admin"]
-    end
-
-    subgraph MQ["RabbitMQ · :5672"]
-        OI["order.intake\n(durable, TTL 30s)"]
-        DLQ["order.intake.dlq\n(Dead Letter Queue)"]
-        EU["event.updates\n(durable)"]
-    end
-
-    subgraph WORKER["Saga Orchestrator (Worker Service)"]
-        S1["Step 1 · CMS Adapter\nSOAP/XML CreateOrder"]
-        S2["Step 2 · WMS Adapter\nTCP PACKAGE_RECEIVED"]
-        S3["Step 3 · ROS Adapter\nPOST /routes"]
-        RT["Retry 3× (1s · 2s · 4s)"]
-        CR["Crash Recovery\nfrom saga_logs"]
-    end
-
-    subgraph DB["MongoDB"]
-        ORDERS["orders"]
-        SAGAS["saga_logs"]
-        ROUTES_COL["routes"]
-        PROTO["protocollogs"]
-    end
-
-    subgraph NOTIF["Notification Service · :8003"]
-        ROOMS["Rooms: user:{id}\nrole:admin · role:driver"]
-    end
-
-    subgraph MOCKS["Mock Back-End Services"]
-        CMS["CMS Mock\nSOAP :8001"]
-        WMS["WMS Mock\nTCP :9000 / HTTP :9001"]
-        ROS["ROS Mock\nREST :8002"]
-    end
-
-    CLIENTS -- HTTP REST / WebSocket --> GW
-    GW --> OI
-    OI -- TTL expire / nack --> DLQ
-    OI --> WORKER
-    WORKER --> DB
-    WORKER --> EU
-    EU --> NOTIF
-    NOTIF -- Socket.io push --> CLIENTS
-
-    S1 --> CMS
-    S2 --> WMS
-    S3 --> ROS
-```
+![Implementation Architecture Diagram](images/implementation-architecture-diagram.jpeg)
 
 ---
 
@@ -189,9 +88,9 @@ The drawback is vendor lock-in with a specific cloud provider and the cold-start
 
 The proposed Decentralised Microservices Architecture was selected because it directly addresses the key non-functional requirements: scalability, resilience, and high-volume asynchronous processing. By decoupling services through RabbitMQ, the system can absorb order bursts during peak events without blocking the client portal. The saga pattern provides explicit distributed transaction management, which is essential given that a single order spans three independent back-end systems. The technology stack is entirely open-source, satisfies the constraint in the brief, and is widely used in production logistics and e-commerce platforms.
 
----
+<div style="page-break-after: always;"></div>
 
-## 3. Architectural and Integration Patterns
+## <a id="3-architectural-and-integration-patterns"></a>3. Architectural and Integration Patterns
 
 ### 3.1 Microservices Pattern
 
@@ -213,7 +112,7 @@ RabbitMQ is used as the message broker to decouple the API Gateway from the Saga
 
 This pattern directly addresses the brief's requirement for high-volume, asynchronous order processing. During peak events, messages accumulate in the queue and are processed at the rate the orchestrator can handle, preventing cascading failures. RabbitMQ's durable queues ensure that messages survive broker restarts. Multiple Worker Service instances can consume from the same queue simultaneously (Competing Consumers pattern), providing horizontal scalability with no application-level changes.
 
-> **Dead Letter Queue (DLQ):** Each primary queue is paired with a Dead Letter Queue. Messages that fail processing after the maximum number of retry attempts are automatically routed to their DLQ (e.g., `order.intake.dlq`) rather than being discarded. This directly satisfies the requirement that no order is ever lost during processing, even when a back-end system is temporarily unavailable. Operations staff can inspect, correct, and re-queue dead-lettered messages via the RabbitMQ management interface.
+**Dead Letter Queue (DLQ):** Each primary queue is paired with a Dead Letter Queue. Messages that fail processing after the maximum number of retry attempts are automatically routed to their DLQ (e.g., `order.intake.dlq`) rather than being discarded. This directly satisfies the requirement that no order is ever lost during processing, even when a back-end system is temporarily unavailable. Operations staff can inspect, correct, and re-queue dead-lettered messages via the RabbitMQ management interface.
 
 ### 3.4 Saga Pattern (Orchestration)
 
@@ -245,11 +144,9 @@ The Notification Service uses Socket.io to maintain persistent WebSocket connect
 
 Socket.io room strategy: each connected user joins a room named `user:{userId}` for targeted delivery. Admin users additionally join a `role:admin` room, which receives a copy of every event for operational visibility. This pattern provides the real-time tracking capability required by the brief: when a driver marks a package as delivered, the API Gateway publishes a `DELIVERY_UPDATE` event which propagates through RabbitMQ to the Notification Service and is immediately reflected in the client portal. Push notifications for urgent driver route changes (`ROUTE_CHANGED` events) are broadcast to all connected driver sockets via the same Socket.io path.
 
----
+<div style="page-break-after: always;"></div>
 
-## 4. Prototype Implementation
-
-### 4.1 Technology Stack
+## <a id="4-prototype-implementation"></a>4. Prototype Implementation
 
 | Component | Technology | Role |
 |---|---|---|
@@ -270,9 +167,7 @@ Socket.io room strategy: each connected user joins a room named `user:{userId}` 
 
 All services are containerised using Docker and defined in a single `docker-compose.yml` file at the project root. The platform is fully operational with a single command:
 
-```bash
-docker compose up --build
-```
+`docker compose up --build`
 
 Docker Compose handles image building, `npm install` (inside each container's Dockerfile), service networking, startup ordering via `depends_on`, and port mapping. No manual dependency installation or service startup is required on the host machine. The following services are defined:
 
@@ -304,70 +199,13 @@ The prototype mocks all three back-end systems to demonstrate the integration ar
 
 The following sequence describes the complete order submission flow through the prototype:
 
-```mermaid
-sequenceDiagram
-    actor Client
-    participant FE as React Portal
-    participant GW as API Gateway
-    participant MQ as RabbitMQ
-    participant WK as Saga Orchestrator
-    participant CMS as Mock CMS
-    participant WMS as Mock WMS
-    participant ROS as Mock ROS
-    participant DB as MongoDB
-    participant NS as Notification Service
-
-    Client->>FE: Submit order
-    FE->>GW: POST /api/orders (JWT)
-    GW->>DB: Write order (PENDING)
-    GW->>MQ: Publish → order.intake
-    GW-->>FE: 202 Accepted + orderId
-    FE-->>Client: Shows PENDING immediately
-
-    MQ->>WK: Consume message
-
-    WK->>CMS: SOAP CreateOrder
-    CMS-->>WK: CMS order reference
-    WK->>DB: Record CMS step in saga_logs
-
-    WK->>WMS: TCP PACKAGE_RECEIVED
-    WMS-->>WK: ACK + package ID
-    WK->>DB: Record WMS step in saga_logs
-
-    WK->>ROS: POST /routes
-    ROS-->>WK: Route manifest + ETA
-    WK->>DB: Store route, mark saga COMPLETED
-
-    WK->>MQ: Publish → event.updates (ORDER_CONFIRMED)
-    MQ->>NS: Consume event
-    NS-->>FE: Socket.io push (order:update)
-    FE-->>Client: Status → CONFIRMED (no refresh)
-```
+![Order Submission Flow](images/order-submission-flow.jpeg)
 
 ### 4.5 Failure Handling and Compensating Transactions
 
 If any step of the saga fails after exhausting all retries, the orchestrator initiates a compensation sequence:
 
-```mermaid
-flowchart TD
-    START([Order Dequeued]) --> S1
-
-    S1["Step 1: CMS CreateOrder\n(retry up to 3×)"]
-    S1 -->|Success| S2
-    S1 -->|All retries failed| COMP_NONE["Mark saga FAILED\n(no compensation needed)"]
-
-    S2["Step 2: WMS PACKAGE_RECEIVED\n(retry up to 3×)"]
-    S2 -->|Success| S3
-    S2 -->|All retries failed| COMP1["Compensate:\nCMS CancelOrder\n→ Mark saga FAILED"]
-
-    S3["Step 3: ROS POST /routes\n(retry up to 3×)"]
-    S3 -->|Success| DONE(["Saga COMPLETED\nPublish ORDER_CONFIRMED"])
-    S3 -->|All retries failed| COMP2["Compensate:\nWMS PACKAGE_REMOVED\n→ CMS CancelOrder\n→ Mark saga FAILED"]
-
-    COMP1 --> NOTIFY["Publish ORDER_FAILED\n→ Notification Service\n→ Client gets real-time update"]
-    COMP2 --> NOTIFY
-    COMP_NONE --> NOTIFY
-```
+![Failure Handling and Compensating Transactions](images/failure-handling-compensating-transactions.jpeg)
 
 Additional failure scenarios:
 
@@ -422,24 +260,13 @@ All real-time events flow through a single `event.updates` RabbitMQ queue. The f
 
 #### Notification Routing
 
-```mermaid
-flowchart LR
-    EU["event.updates\nRabbitMQ queue"]
-    NS["Notification Service"]
-
-    EU --> NS
-
-    NS -->|"has clientId"| CR["user:{clientId} room\n(specific client)"]
-    NS -->|"always"| AR["role:admin room\n(all admins)"]
-    NS -->|"ORDER_CONFIRMED\nor DELIVERY_UPDATE"| DR["role:driver room\n(all drivers)"]
-    NS -->|"ROUTE_CHANGED\n(no clientId)"| ALL["io.emit()\n(broadcast all)"]
-```
+![Notification Routing](images/notification-routing.jpeg)
 
 The React frontend's `useSocket` hook subscribes to `order:update` Socket.io events and applies status updates directly to local state, updating the UI without a page refresh. The Driver Manifest listens for `ROUTE_CHANGED` and refetches the manifest from the API. The prototype fully implements the real-time tracking path end-to-end for all event types.
 
----
+<div style="page-break-after: always;"></div>
 
-## 5. Information Security Considerations
+## <a id="5-information-security-considerations"></a>5. Information Security Considerations
 
 ### 5.1 Authentication and Authorisation
 
@@ -471,9 +298,9 @@ The SOAP channel to the CMS and the TCP channel to the WMS are internal to the D
 
 All authentication events and order state transitions are recorded as immutable events in MongoDB with timestamps, user IDs, and outcomes. The `saga_logs` collection provides a full audit trail of every distributed transaction, including retry attempts, compensations, and DLQ routing. This supports forensic analysis of integration failures and dispute resolution.
 
----
+<div style="page-break-after: always;"></div>
 
-## 6. Addressing the Architectural Challenges
+## <a id="6-addressing-the-architectural-challenges"></a>6. Addressing the Architectural Challenges
 
 The brief outlines six specific architectural challenges that the middleware solution must address. This section discusses how each challenge is tackled by the proposed architecture and implementation.
 
@@ -501,20 +328,8 @@ The microservices architecture allows independent scaling: multiple Worker insta
 
 All communication is secured via JWT authentication with RBAC, input validation at the API Gateway, and bcrypt-hashed passwords in MongoDB. Transport security uses TLS in production (HTTPS/WSS), with Docker network isolation internally. RabbitMQ requires authentication with limited permissions, and audit logs track all events. This protects against unauthorized access, data breaches, and injection attacks, as required by the brief.
 
----
+<div style="page-break-after: always;"></div>
 
-## 7. Conclusion
+## <a id="7-conclusion"></a>7. Conclusion
 
 The proposed Decentralised Microservices Architecture provides a robust foundation for the SwiftTrack platform. By leveraging open-source technologies such as Node.js, RabbitMQ, MongoDB, and Socket.io, the solution meets all functional and non-functional requirements outlined in the brief. The prototype demonstrates end-to-end integration, real-time notifications, and fault tolerance, serving as a solid proof-of-concept for production deployment. Future enhancements could include production hardening (e.g., TLS everywhere, monitoring with Prometheus/Grafana) and additional features like advanced analytics or multi-tenant support.
-
----
-
-## References
-
-- Hohpe, G. & Woolf, B. (2003). *Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions*. Addison-Wesley.
-- Richardson, C. (2018). *Microservices Patterns*. Manning Publications.
-- Garcia-Molina, H. & Salem, K. (1987). Sagas. *ACM SIGMOD Record*, 16(3), 249–259.
-- RabbitMQ. (2024). RabbitMQ Documentation. https://www.rabbitmq.com/docs
-- MongoDB Inc. (2024). MongoDB Documentation. https://www.mongodb.com/docs/
-- Socket.io. (2024). Socket.io Documentation. https://socket.io/docs/
-- Node.js Foundation. (2024). Node.js Documentation. https://nodejs.org/en/docs/
