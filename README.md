@@ -1,5 +1,4 @@
-# swifttrack — Middleware Architecture Prototype
-SCS2314 Assignment 4
+# SwiftTrack — Middleware Architecture Prototype
 
 ## Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
